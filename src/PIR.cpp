@@ -18,6 +18,7 @@ int readDigitalValue()
 {
   // The OpenPIR's digital output is active high
   int motionStatus = digitalRead(PIR_DOUT);
+  Serial.println(motionStatus);
   return motionStatus;
 }
 

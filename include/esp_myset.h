@@ -6,12 +6,12 @@
 
 #define ALEN(a) ((int) (sizeof(a) / sizeof(a[0]))) 
 
-extern const char *boiler[];
+extern const char *templ[];
 
-typedef struct { int position; const char *replacement; } replacement_t;
-void get_Html(String& html, const char *[], int, replacement_t [], int);
+typedef struct { int position; const char *replacement; } rep_type;
 
-#define getHtml(strout, boiler, repls) get_Html(strout, boiler, ALEN(boiler), repls, ALEN(repls));
+void get_Html(String& html, const char *[], int, rep_type [], int);
+#define getHtml(strout, templ, repls) get_Html(strout, templ, ALEN(templ), repls, ALEN(repls));
 
 
 // MAC address 
@@ -27,18 +27,15 @@ extern WebServer webServer;     // a simple web server
 void startAP();
 void printIPs();
 void startWebServer();
-void handleNotFound();
-void handleRoot();
-void handleHello();
+void ErrorHandle();
+void HomePage();
+void HelloPage();
 
-void initWebServer();
-void hndlNotFound();
-void hndlRoot();
-void hndlWifi();
-void hndlWifichz();
-void hndlStatus();
-void apListForm(String& f);
-String ip2str(IPAddress address);
+void WiFiSelect();
+void WiFiConnect();
+void WiFiStatus();
+void WiFiList(String& f);
+String ip_address(IPAddress address);
 
 
 #endif

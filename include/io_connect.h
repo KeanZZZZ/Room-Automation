@@ -18,6 +18,9 @@ extern const char* mqttTopic_light;
 extern const char* mqttTopic_temperature;
 extern const char* mqttTopic_humidity;
 extern const char* mqttTopic_heater;
+extern const char* mqttTopic_autolight;
+
+extern bool flag_lamp;
 
 #define LED 13
 #define LED0 32

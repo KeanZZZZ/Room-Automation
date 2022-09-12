@@ -14,29 +14,29 @@ const char* password = "";
 const char* mqttServer = "io.adafruit.com";
 const int mqttPort = 1883;
 const char* mqttUser = "Keanne";
-const char* mqttPassword = "aio_ueJA80yyQZz4uKgEQe8VENFRZITU";
+const char* mqttPassword = "aio_UKXP36IlQZqWoNxqIVepesDgXi0r";
 const char* mqttTopic_light = "Keanne/feeds/light";
 const char* mqttTopic_temperature = "Keanne/feeds/temperature";
 const char* mqttTopic_humidity = "Keanne/feeds/humidity";
 const char* mqttTopic_heater = "Keanne/feeds/heater";
 const char* mqttTopic_autotemp = "Keanne/feeds/autotemp";
+const char* mqttTopic_autolight = "Keanne/feeds/autolight";
+bool flag_lamp = true;
 
-const char *boiler[] = { // boilerplate: constants & pattern parts of template
+const char *templ[] = { // boilerplate: constants & pattern parts of template
   "<html><head><title>",                                                // 0
-  "default title",                                                      // 1
+  "Home Automation",                                                      // 1
   "</title>\n",                                                         // 2
+
   "<meta charset='utf-8'>",                                             // 3
+  "<meta name='author' content='Qi Zhang'>",                            //4
+  "<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n",   //5
+  "<style>p{background:#FFF; color: #000; font-size: 140%;}</style>\n",     //6                                   //  6
 
-  // adjacent strings in C are concatenated:
-  "<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n"
-  "<style>body{background:#FFF; color: #000; font-family: sans-serif;", // 4
-
-  "font-size: 150%;}</style>\n",                                        //  5
-  "</head><body>\n",                                                    //  6
-  "<h2>Welcome to Thing!</h2>\n",                                       //  7
-  "<!-- page payload goes here... -->\n",                               //  8
-  "<!-- ...and/or here... -->\n",                                       //  9
-  "\n<p><a href='/'>Home</a>&nbsp;&nbsp;&nbsp;</p>\n",                  // 10
+  "</head><body>\n",                                                    //  7
+  "<h2>WiFi Page</h2>\n",                                               //  8
+  "<Content>\n",                                                       //  9
+  "\n<p><a href='/'>Home</a>&nbsp;&nbsp;</p>\n",                  // 10
   "</body></html>\n\n",                                                 // 11
 };
 
@@ -87,6 +87,7 @@ void mqtt_setup() {
     client.subscribe(mqttTopic_light);
     client.subscribe(mqttTopic_heater);
     client.subscribe(mqttTopic_autotemp);
+    client.subscribe(mqttTopic_autolight);
 }
 
 
@@ -125,6 +126,13 @@ void mqtt_send_lamp_status() {
     Serial.println("ON");
     client.publish(mqttTopic_light, "ON");
   } 
+  if(!flag_lamp){
+    Serial.println("Manul");
+    client.publish(mqttTopic_autolight, "Manul");
+  }else{
+    Serial.println("Auto");
+    client.publish(mqttTopic_autolight, "Auto");
+  }
 }
 
 void mqtt_lamp_on(){
@@ -150,15 +158,25 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }    
     Serial.println(byteRead);
 
-    if(strcmp(topic, mqttTopic_light)==0){
+    if(strcmp(topic, mqttTopic_autolight)==0){
       Serial.println("light control");
+      if (byteRead == "Manul"){
+        Serial.println("Manul Mode!");
+        flag_lamp = false;
+      }
+
+      if (byteRead == "Auto"){
+        Serial.println("Auto Mode!");
+        flag_lamp = true;
+      }
+    }else if(strcmp(topic, mqttTopic_light)==0){
       if (byteRead == "OFF"){
-        Serial.println("LAMP OFF!");
+        Serial.println("Light off");
         digitalWrite(LED0, LED_OFF);
       }
 
       if (byteRead == "ON"){
-        Serial.println("LAMP ON!");
+        Serial.println("Light on");
         digitalWrite(LED0, LED_ON);
       }
     }else if(strcmp(topic, mqttTopic_heater)==0){
@@ -183,21 +201,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 }
 
-// setup and loop ///////////////////////////////////////////////////////////
 void wifi_connect() {
   Serial.begin(115200);
   getMAC(MAC_ADDRESS);
 
-  startAP();            // fire up the AP...
-  startWebServer();     // ...and the web server
+  startAP();   
+  startWebServer();     
 }
 
-void getMAC(char *buf) { // the MAC is 6 bytes, so needs careful conversion...
-  uint64_t mac = ESP.getEfuseMac(); // ...to string (high 2, low 4):
+void getMAC(char *buf) { // get MAC address
+  uint64_t mac = ESP.getEfuseMac(); 
   char rev[13];
   sprintf(rev, "%04X%08X", (uint16_t) (mac >> 32), (uint32_t) mac);
 
-  // the byte order in the ESP has to be reversed relative to normal Arduino
+ 
   for(int i=0, j=11; i<=10; i+=2, j-=2) {
     buf[i] = rev[j - 1];
     buf[i + 1] = rev[j];
@@ -205,14 +222,13 @@ void getMAC(char *buf) { // the MAC is 6 bytes, so needs careful conversion...
   buf[12] = '\0';
 }
 
-// startup utilities 
 void startAP() {
   apSSID = String("Thing-");
   apSSID.concat(MAC_ADDRESS);
 
   if(! WiFi.mode(WIFI_AP_STA))
     Serial.println("failed to set Wifi mode");
-  if(! WiFi.softAP(apSSID.c_str(), "zhang163"))
+  if(! WiFi.softAP("Home-Automation", "zhang163"))
     Serial.println("failed to start soft AP");
   printIPs();
 }
@@ -228,43 +244,39 @@ void printIPs() {
     WiFi.printDiag(Serial);
 }
 void startWebServer() {
-  // register callbacks to handle different paths
-  webServer.on("/", handleRoot);
-  webServer.on("/hello", handleHello);
-  webServer.on("/wifi", hndlWifi);          // page for choosing an AP
-  webServer.on("/wifichz", hndlWifichz);    // landing page for AP form submit
-  webServer.on("/status", hndlStatus);      // status check, e.g. IP address
+  webServer.on("/", HomePage);
+  webServer.on("/hello", HelloPage);
+  webServer.on("/wifi", WiFiSelect);          // WiFi select
+  webServer.on("/wifichz", WiFiConnect);    // WiFi connect information
+  webServer.on("/status", WiFiStatus);      // WiFi status
 
-
-  // 404s...
-  webServer.onNotFound(handleNotFound);
+  webServer.onNotFound(ErrorHandle);  //handle error
 
   webServer.begin();
   Serial.println("HTTP server started");
 }
 
-// webserver handler callbacks ///////////////////////////////////////////////
-void handleNotFound() {
+
+void ErrorHandle() {
   Serial.print("URI Not Found: ");
   Serial.println(webServer.uri());
   webServer.send(200, "text/plain", "URI Not Found");
 }
 
-void handleRoot() {
+void HomePage() {
   Serial.println("serving page notionally at /");
-  replacement_t repls[] = { // the elements to replace in the boilerplate
-    {  1, apSSID.c_str() },
-    {  8, "" },
-    {  9, "<p>Choose a <a href=\"wifi\">wifi access point</a>.</p>" },
-    { 10, "<p>Check <a href='/status'>wifi status</a>.</p>" },
+  rep_type repls[] = { // the elements to replace in the boilerplate
+    {  1, "Home Page"},
+    {  9, "<p><a href=\"wifi\">Choose a wifi ap</a>.</p>" },
+    { 10, "<p><a href='/status'>Wifi status</a>.</p>" },
   };
 
   String htmltext = "";
-  getHtml(htmltext, boiler, repls);
+  getHtml(htmltext, templ, repls);
   webServer.send(200, "text/html", htmltext);
 }
 
-void handleHello() {
+void HelloPage() {
   Serial.println("serving /hello");
   webServer.send(
     200,
@@ -273,25 +285,24 @@ void handleHello() {
   );
 }
 
-void hndlWifi() {
+void WiFiSelect() {
   Serial.println("serving page at /wifi");
 
-  String form = ""; // a form for choosing an access point and entering key
-  apListForm(form);
-  replacement_t repls[] = { // the elements to replace in the boilerplate
-    { 1, apSSID.c_str() },
-    { 7, "<h2>Network configuration</h2>\n" },
-    { 8, "" },
+  String form = ""; 
+  WiFiList(form);
+  rep_type repls[] = {
+    { 1, "WiFi List" },
+    { 8, "<h2>Network configuration</h2>\n" },
     { 9, form.c_str() },
   };
-  String htmlPage = ""; // a String to hold the resultant page
-  getHtml(htmlPage, boiler, repls); // GET_HTML sneakily added to Ex07
+  String htmlPage = "";
+  getHtml(htmlPage, templ, repls); 
 
   webServer.send(200, "text/html", htmlPage);
 }
 
 
-void hndlWifichz() {
+void WiFiConnect() {
   Serial.println("serving page at /wifichz");
 
   String title = "<h2>wifi connection complete</h2>";
@@ -318,24 +329,23 @@ void hndlWifichz() {
       delay(500);
       Serial.print(".");
     }
-    Serial.print("Connecting successful!\n");
+    Serial.print("Connection success!\n");
     mqtt_setup();
   }
 
-  replacement_t repls[] = { // the elements to replace in the template
-    { 1, apSSID.c_str() },
-    { 7, title.c_str() },
-    { 8, "" },
+  rep_type repls[] = { 
+    { 1, "Connecting WiFI..." },
+    { 8, title.c_str() },
     { 9, message.c_str() },
   };
-  String htmlPage = "";     // a String to hold the resultant page
-  getHtml(htmlPage, boiler, repls);
+  String htmlPage = "";  
+  getHtml(htmlPage, templ, repls);
 
   webServer.send(200, "text/html", htmlPage);
 }
 
 
-void hndlStatus() {         // UI for checking connectivity etc.
+void WiFiStatus() {    
   Serial.println("serving page at /status");
 
   String s = "";
@@ -362,74 +372,75 @@ void hndlStatus() {         // UI for checking connectivity etc.
     default:
       s += "unknown</li>";
   }
+  String MAC_address = "";
+  MAC_address.concat(MAC_ADDRESS);
 
-  s += "\n<li>Local IP: ";     s += ip2str(WiFi.localIP());
+  s += "\n<li>Local IP: ";     s += ip_address(WiFi.localIP());
   s += "</li>\n";
-  s += "\n<li>Soft AP IP: ";   s += ip2str(WiFi.softAPIP());
+  s += "\n<li>Soft AP IP: ";   s += ip_address(WiFi.softAPIP());
   s += "</li>\n";
-  s += "\n<li>AP SSID name: "; s += apSSID;
+  s += "\n<li>MAC: "; s += MAC_address;
   s += "</li>\n";
 
   s += "</ul></p>";
 
-  replacement_t repls[] = { // the elements to replace in the boilerplate
+  rep_type repls[] = { 
     { 1, apSSID.c_str() },
-    { 7, "<h2>Status</h2>\n" },
-    { 8, "" },
+    { 8, "<h2>Status</h2>\n" },
     { 9, s.c_str() },
   };
-  String htmlPage = ""; // a String to hold the resultant page
-  getHtml(htmlPage, boiler, repls); // GET_HTML sneakily added to Ex07
+  String htmlPage = "";
+  getHtml(htmlPage, templ, repls); 
 
   webServer.send(200, "text/html", htmlPage);
 }
 
 
-void apListForm(String& f) { // utility to create a form for choosing AP
+void WiFiList(String& replace) { // List to choose WiFi
   const char *checked = " checked";
   int n = WiFi.scanNetworks();
   Serial.print("scan done: ");
 
   if(n == 0) {
     Serial.println("no networks found");
-    f += "No wifi access points found :-( ";
-    f += "<a href='/'>Back</a><br/><a href='/wifi'>Try again?</a></p>\n";
+    replace += "No wifi access points found :-( ";
+    replace += "<a href='/'>Back</a><br/><a href='/wifi'>Try again?</a></p>\n";
   } else {
     Serial.print(n); Serial.println(" networks found");
-    f += "<p>Wifi access points available:</p>\n"
+    replace += "<p>Wifi access points available:</p>\n"
          "<p><form method='POST' action='wifichz'> ";
     for(int i = 0; i < n; ++i) {
-      f.concat("<input type='radio' name='ssid' value='");
-      f.concat(WiFi.SSID(i));
-      f.concat("'");
-      f.concat(checked);
-      f.concat(">");
-      f.concat(WiFi.SSID(i));
-      f.concat(" (");
-      f.concat(WiFi.RSSI(i));
-      f.concat(" dBm)");
-      f.concat("<br/>\n");
+      replace.concat("<input type='radio' name='ssid' value='");
+      replace.concat(WiFi.SSID(i));
+      replace.concat("'");
+      replace.concat(checked);
+      replace.concat(">");
+      replace.concat(WiFi.SSID(i));
+      replace.concat(" (");
+      replace.concat(WiFi.RSSI(i));
+      replace.concat(" dBm)");
+      replace.concat("<br/>\n");
       checked = "";
     }
-    f += "<br/>Pass key: <input type='textarea' name='key'><br/><br/> ";
-    f += "<input type='submit' value='Submit'></form></p>";
+    replace += "<br/>Pass key: <input type='textarea' name='key'><br/><br/> ";
+    replace += "<input type='submit' value='Submit'></form></p>";
   }
 }
-String ip2str(IPAddress address) { // utility for printing IP addresses
+String ip_address(IPAddress address) { //printing IP addresses
   return
     String(address[0]) + "." + String(address[1]) + "." +
     String(address[2]) + "." + String(address[3]);
 }
 
-void get_Html( // turn array of strings & set of replacements into a String
-  String& html, const char *boiler[], int boilerLen,
-  replacement_t repls[], int replsLen
+void get_Html( // return a string of HTML formate
+  String& html, const char *templ[], int templLen,
+  rep_type repls[], int replsLen
 ) {
-  for(int i = 0, j = 0; i < boilerLen; i++) {
+  for(int i = 0, j = 0; i < templLen; i++) {
     if(j < replsLen && repls[j].position == i)
       html.concat(repls[j++].replacement);
     else
-      html.concat(boiler[i]);
+      html.concat(templ[i]);
   }
 }
 
@@ -437,7 +448,6 @@ void setup_ios() {
   pinMode(LED, OUTPUT);
 }
 
-//--------- ARDUINO --------------------------------------
 void connection_setup() {  
   Serial.begin(115200);
   setup_ios();  

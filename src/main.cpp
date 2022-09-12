@@ -36,27 +36,49 @@ void setup(void)
 }
 
 bool trigger = false;
-void detect_distance(){
+bool should_light = false;
+void detect_motion(){
   int det = readDigitalValue();
-  if (det == HIGH && light_isClose && !trigger)
+  int brightness = simpleRead();
+  if (det == HIGH && light_isClose && !trigger)//Entering the room
   {
-      tonSig2();
-      mqtt_lamp_on();
-      digitalWrite(LED0, HIGH);
+      if(brightness<1000){
+        tonSig2();
+        tonSig2();  //In case transport fail
+        mqtt_lamp_on();
+        should_light = true;
+        digitalWrite(LED0, HIGH);
+      }else should_light = false;
       trigger = true;
   }
-  else if(det == LOW && light_isClose && trigger){
-      light_isClose = false;
+  else if(det == LOW && light_isClose && trigger){//already enterd the room
+      light_isClose = false; 
       trigger = false;
   }
-  else if(det == HIGH && !light_isClose && !trigger)
+  else if(det == LOW && !light_isClose && !trigger){//keep detecting the brightness
+      if(brightness<1000 && digitalRead(LED0) == LOW){  ///when people entered
+        tonSig2();
+        tonSig2();
+        mqtt_lamp_on();
+        digitalWrite(LED0, HIGH);
+        Serial.println("dark");
+      }else if(brightness>=1000 && digitalRead(LED0) == HIGH){
+        toffSig2();
+        toffSig2();
+        mqtt_lamp_off();
+        digitalWrite(LED0, LOW);
+        Serial.println("light");
+      }
+  }
+  else if(det == HIGH && !light_isClose && !trigger)//leaving the room
   {
+      toffSig2();
       toffSig2();
       mqtt_lamp_off();
       digitalWrite(LED0, LOW);
       trigger = true;
   }
-  else if(det == LOW && !light_isClose && trigger){
+  else if(det == LOW && !light_isClose && trigger){//already left the room
       light_isClose = true;
       trigger = false;
   }
@@ -65,20 +87,21 @@ void detect_distance(){
 void auto_temp(){
   float temp = getTemp();
   if(temp<temp_set && isClose){
-    tonSig1();
-    //digitalWrite(LED, HIGH);
+    tonSig1();  //A434 transmits the signal
+    tonSig1();  //In case the transmission message corrupt
     isClose = !isClose;
   }
   else if(temp>temp_set && !isClose){
     toffSig1();
-    //digitalWrite(LED, LOW);
+    toffSig1();
     isClose = !isClose;
   }
 }
  
 void loop(void) 
 { 
-  simpleRead(); //220 to open the light
+  //simpleRead(); //800 to open the light
+  printAnalogValue();
 
   printDHT();
 
@@ -86,12 +109,20 @@ void loop(void)
 
   connection_loop();
 
-  detect_distance();
+  if(flag_lamp) detect_motion();
+  else{
+    int light_con = digitalRead(LED0);
+    if(light_con==HIGH){
+      tonSig2();
+      Serial.println("Light open manully");
+    }else toffSig2();
+  }
 
   int con = digitalRead(LED);
   if(con == HIGH){
     auto_temp();
   }else if(con == LOW && !isClose){
+    toffSig1();
     toffSig1();
     isClose = true;
   }

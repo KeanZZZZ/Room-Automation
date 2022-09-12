@@ -53,8 +53,6 @@ void printMessage(){
 int simpleRead()
 {
   // Simple data read example. Just read the infrared, fullspecrtrum diode 
-  // or 'visible' (difference between the two) channels.
-  // This can take 100-600 milliseconds! Uncomment whichever of the following you want to read
   uint16_t x = tsl.getLuminosity(TSL2591_VISIBLE);
   //uint16_t x = tsl.getLuminosity(TSL2591_FULLSPECTRUM);
   //uint16_t x = tsl.getLuminosity(TSL2591_INFRARED);
